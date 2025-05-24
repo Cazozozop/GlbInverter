@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>GLB Export avec lumière inversée</title>
+  <style>
+    body { margin: 0; background: #111; overflow: hidden; }
+    canvas { display: block; }
+    #ui {
+      position: absolute; top: 10px; left: 10px;
+      z-index: 1; background: rgba(0,0,0,0.6);
+      padding: 10px; border-radius: 8px; color: white;
+    }
+    button, input { margin-top: 5px; display: block; }
+  </style>
+</head>
+<body>
+  <div id="ui">
+    <input type="file" id="fileInput" accept=".glb,.gltf,.txt">
+    <button id="exportBtn" disabled>Exporter avec lumière inversée</button>
+  </div>
+  <script type="module">
+    import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js';
+    import { GLTFLoader } from 'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/loaders/GLTFLoader.js';
+    import { GLTFExporter } from 'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/exporters/GLTFExporter.js';
+
+    let scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x222222);
+
+    let camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+    camera.position.set(2, 2, 4);
+
+    let renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    let controls = new OrbitControls(camera, renderer.domElement);
+
+    // Lumière d'affichage (visuelle)
+    const displayLight = new THREE.DirectionalLight(0xffffff, 1);
+    displayLight.position.set(-2, -2, -2);
+    scene.add(displayLight);
+    scene.add(new THREE.AmbientLight(0x404040, 0.5));
+
+    let model = null;
+
+    const animate = () => {
+      requestAnimationFrame(animate);
+      renderer.render(scene, camera);
+    };
+    animate();
+
+    const fileInput = document.getElementById('fileInput');
+    const exportBtn = document.getElementById('exportBtn');
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const url = URL.createObjectURL(file);
+      const loader = new GLTFLoader();
+
+      loader.load(url, (gltf) => {
+        if (model) scene.remove(model);
+        model = gltf.scene;
+        scene.add(model);
+        exportBtn.disabled = false;
+        controls.reset();
+      });
+    });
+
+    exportBtn.addEventListener('click', () => {
+      if (!model) return;
+
+      // Création d’une nouvelle scène pour l’export
+      const exportScene = new THREE.Scene();
+      exportScene.add(model.clone());
+
+      // Lumière inversée réelle
+      const light = new THREE.DirectionalLight(0xffffff, 1);
+      light.position.set(-2, -2, -2);
+      light.name = "InvertedLight";
+      exportScene.add(light);
+
+      const ambient = new THREE.AmbientLight(0x404040, 0.5);
+      exportScene.add(ambient);
+
+      const exporter = new GLTFExporter();
+      exporter.parse(exportScene, (result) => {
+        const blob = result instanceof ArrayBuffer
+          ? new Blob([result], { type: 'model/gltf-binary' })
+          : new Blob([JSON.stringify(result)], { type: 'application/json' });
+
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'export_lumiere_inversee.glb';
+        a.click();
+      }, { binary: true });
+    });
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+  </script>
+</body>
+</html>
